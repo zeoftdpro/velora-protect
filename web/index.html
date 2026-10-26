@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velora Protect · Sécurité de votre site et de votre application</title>
+<meta name="description" content="Analysez gratuitement la sécurité de votre site ou application : failles dans le code, secrets oubliés, dépendances vulnérables, configuration HTTPS. Votre code ne quitte jamais votre navigateur.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header>
+  <div class="brand">Velora Protect <span>· sécurité des sites et applications</span></div>
+</header>
+<main>
+  <section class="hero">
+    <h1>Votre site est-il vraiment protégé ?</h1>
+    <p>Glissez le dossier de votre projet ou saisissez l'adresse de votre site : Velora repère les failles, le code malveillant,
+      les secrets oubliés et les mauvaises configurations, puis vous donne la configuration à copier pour corriger.</p>
+    <ul class="promises">
+      <li><strong>Score de sécurité</strong> /100</li>
+      <li><strong>Indice de confiance</strong> /100 : à quel point vous pouvez vous fier au score</li>
+      <li><strong>Code malveillant</strong> : portes dérobées, webshells, mineurs, scripts piégés</li>
+    </ul>
+  </section>
+  <div id="quick"></div>
+  <section class="grid features">
+    <div class="card">
+      <h2>Le code malveillant</h2>
+      <p class="sub">Portes dérobées et webshells PHP, code décodé puis exécuté, mineurs de cryptomonnaie, vol de cookies,
+        iframes invisibles, redirections cachées d'un site piraté, scripts d'installation npm/Python piégés, fichiers PHP
+        cachés dans un dossier d'images.</p>
+    </div>
+    <div class="card">
+      <h2>La confiance</h2>
+      <p class="sub">Chaque analyse a un indice de confiance /100 : langages couverts par des règles, dépendances vérifiées
+        avec leur version exacte, fichiers réellement lus. Vous savez ce que le score vaut, et pourquoi.</p>
+    </div>
+    <div class="card">
+      <h2>Le code</h2>
+      <p class="sub">XSS, injections SQL et de commande, inclusion de fichiers, SSRF, cookies, CSRF, clés API et mots de passe
+        laissés dans le code, dépendances vulnérables (base OSV.dev). React, Vue, PHP, WordPress, Python, HTML/CSS, C/C++,
+        Java, .NET, Go…</p>
+    </div>
+    <div class="card">
+      <h2>Les applications</h2>
+      <p class="sub">Connexion sans limite de tentatives, mots de passe mal hachés. Mobile : Android, iOS, Flutter, React Native
+        (app débogable, trafic en clair, certificats non vérifiés, jetons stockés sans chiffrement).</p>
+    </div>
+    <div class="card">
+      <h2>Le site en ligne</h2>
+      <p class="sub">HTTPS et certificat, protocoles obsolètes, en-têtes de sécurité, cookies, CORS, source maps et clés dans
+        les scripts publiés, et sur preuve de propriété : fichiers sensibles accessibles (.env, .git, sauvegardes).</p>
+    </div>
+    <div class="card">
+      <h2>Confidentialité</h2>
+      <p class="sub">Le code est analysé dans votre navigateur et n'est jamais envoyé. Seuls les noms et versions des
+        dépendances sont envoyés à OSV.dev (désactivable). Aucun cookie, aucun traceur.</p>
+    </div>
+  </section>
+  <p class="small muted disclaimer">Analyse automatique par heuristiques : chaque constat est à vérifier, et un bon score ne
+    garantit pas l'absence de faille. Pour une application sensible, rien ne remplace un audit humain.</p>
+</main>
+<div id="toast" role="status"></div>
+<script src="/shared.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

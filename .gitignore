@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.velora/history.jsonl
+.velora/last_scan.json
+
+# Site construit par tools/build_web.py
+public/
+.vercel/
+
+.vercel
+.env*
+
+# Données locales de Velora lancé sur ce projet (preuves, copie des sources, configuration)
+velora/.velora/

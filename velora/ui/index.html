@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="velora-token" content="__VELORA_TOKEN__">
+<title>Velora Protect</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">Velora Protect <span>· sécurité, sauvegarde, preuve, protection</span></div>
+  <div class="row" style="margin:0">
+    <select id="projectSelect" aria-label="Projet"></select>
+    <button id="addProjectBtn">+ Projet</button>
+  </div>
+</header>
+<main><div id="quick"></div><div id="app"></div></main>
+<div id="toast" role="status"></div>
+
+<script src="/shared.js"></script>
+<script>
+const TOKEN = document.querySelector('meta[name="velora-token"]').content;
+let current = null;
+
+
+async function api(path, body = {}) {
+  const res = await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Velora-Token': TOKEN},
+    body: JSON.stringify(body)});
+  const data = await res.json().catch(() => ({error: 'Réponse invalide'}));
+  if (!res.ok) throw new Error(data.error || ('Erreur ' + res.status));
+  return data;
+}
+
+
+async function run(button, fn, label) {
+  const old = button.textContent;
+  button.disabled = true; button.textContent = label || 'En cours…';
+  try { await fn(); } catch (e) { toast('⚠ ' + e.message); }
+  finally { button.disabled = false; button.textContent = old; }
+}
+
+
+
+async function loadProjects(select) {
+  const projects = await api('/api/projects');
+  const sel = document.getElementById('projectSelect');
+  sel.replaceChildren(...projects.map(p => el('option', {value: p.root}, p.name)));
+  if (!projects.length) { current = null; renderEmpty(); return; }
+  const saved = (() => { try { return localStorage.getItem('velora.project'); } catch { return null; } })();
+  current = select || (projects.some(p => p.root === saved) ? saved : projects[0].root);
+  sel.value = current;
+  await refresh();
+}
+
+function renderEmpty() {
+  document.getElementById('app').replaceChildren(el('div', {class: 'card empty'},
+    el('h2', {}, 'Aucun projet suivi'),
+    el('p', {class: 'muted'}, 'Pour une analyse ponctuelle, glissez votre projet ci-dessus. Pour les sauvegardes, preuves '
+      + 'horodatées et la protection anti-copie, ajoutez son dossier avec « + Projet ».')));
+}
+
+async function refresh() {
+  if (!current) return;
+  const st = await api('/api/status', {root: current});
+  render(st);
+}
+
+function render(st) {
+  const app = document.getElementById('app');
+  app.replaceChildren(el('div', {class: 'grid'},
+    securityCard(st), backupCard(st), proofCard(st), protectCard(st), settingsCard(st)));
+}
+
+function securityCard(st) {
+  const scan = st.last_scan;
+  const score = scan ? scan.score : null;
+  const cls = score == null ? 'muted' : score >= 80 ? 'ok' : score >= 50 ? 'warn' : 'bad';
+  const list = el('ul', {class: 'list'});
+  (scan?.findings || []).slice(0, 80).forEach(f => list.append(findingItem(f)));
+  const offline = el('input', {type: 'checkbox', id: 'offline'});
+  const btn = el('button', {class: 'primary', onclick: () => run(btn, async () => {
+    const r = await api('/api/scan', {root: current, offline: offline.checked});
+    toast(`Analyse terminée : score ${r.score}/100, ${r.findings.length} constat(s)` + (r.warnings.length ? '\n' + r.warnings.join('\n') : ''));
+    await refresh();
+  }, 'Analyse…')}, 'Analyser');
+  return el('section', {class: 'card wide'},
+    el('h2', {}, 'Sécurité'),
+    el('p', {class: 'sub'}, 'Secrets oubliés, dépendances vulnérables (base OSV.dev), mauvaises configurations.'),
+    el('div', {class: 'row'},
+      scan ? null : el('div', {class: 'metric ' + cls}, '—', el('small', {}, ' /100')),
+      el('div', {class: 'small muted', style: 'margin-left:8px'},
+        scan ? `${scan.files_scanned} fichiers · ${scan.dependencies} dépendances · ${fmtDate(scan.time)}` : 'Jamais analysé'),
+      el('div', {style: 'flex:1'}),
+      el('label', {for: 'offline', style: 'margin:0;display:flex;gap:6px;align-items:center'}, offline, 'hors-ligne'),
+      btn),
+    scan ? scoreHeader(scan, false) : null,
+    confidenceBlock(scan?.confidence),
+    scan && scan.findings.length ? list : el('p', {class: 'muted small'}, scan ? '✔ Aucun problème détecté.' : ''),
+    scan?.findings.length > 80 ? el('p', {class: 'small muted'}, `… ${scan.findings.length - 80} autres (velora scan --all)`) : null);
+}
+
+function backupCard(st) {
+  const b = st.backup;
+  const last = b.last_ok;
+  const failed = b.last && b.last.status === 'failed';
+  const force = el('input', {type: 'checkbox', id: 'force'});
+  const log = el('pre', {class: 'log', hidden: true});
+  const btn = el('button', {class: 'primary', onclick: () => run(btn, async () => {
+    const r = await api('/api/backup', {root: current, force: force.checked});
+    log.hidden = false; log.textContent = (r.log || []).join('\n') || r.message;
+    toast(r.status === 'skipped' ? r.message : `Sauvegarde ${r.archive} (${fmtSize(r.size)})` + (r.message ? '\n' + r.message : ''));
+    await refresh();
+  }, 'Sauvegarde…')}, 'Sauvegarder');
+  const list = el('ul', {class: 'list'});
+  for (const d of st.backups || []) {
+    list.append(el('li', {class: 'small'}, el('strong', {class: 'mono'}, d.destination), d.error ? el('div', {class: 'bad'}, d.error) : null,
+      ...(d.archives || []).slice(0, 8).map(a => el('div', {class: 'mono muted'}, `${a.name}  ${fmtSize(a.size)}`)),
+      !d.error && !(d.archives || []).length ? el('div', {class: 'muted'}, 'aucune archive') : null));
+  }
+  return el('section', {class: 'card'},
+    el('h2', {}, 'Sauvegardes'),
+    el('p', {class: 'sub'}, 'Archives versionnées et vérifiées (fichiers, historique git, bases), avec rétention.'),
+    el('div', {class: 'metric ' + (last ? 'ok' : 'warn')}, last ? fmtDate(last.time) : 'Aucune'),
+    last ? el('div', {class: 'small muted'}, `${last.files} fichiers · ${fmtSize(last.size)} · ${Object.keys(last.destinations || {}).length} destination(s)`) : null,
+    failed ? el('div', {class: 'small bad'}, 'Dernière tentative en échec : ' + (b.last.message || '')) : null,
+    !b.destinations.length ? el('p', {class: 'small warn'}, 'Ajoutez une destination dans « Réglages » (disque externe, NAS, dossier OneDrive…).') : null,
+    el('div', {class: 'row'}, btn, el('label', {for: 'force', style: 'margin:0;display:flex;gap:6px;align-items:center'}, force, 'même sans changement')),
+    log,
+    b.destinations.length ? list : null);
+}
+
+function proofCard(st) {
+  const note = el('input', {placeholder: 'Note (ex. v1.2, dépôt client…)', style: 'flex:1'});
+  const archive = el('input', {type: 'checkbox', id: 'archive', checked: true});
+  const out = el('pre', {class: 'log', hidden: true});
+  const btn = el('button', {class: 'primary', onclick: () => run(btn, async () => {
+    const r = await api('/api/proof', {root: current, note: note.value, archive: archive.checked});
+    out.hidden = false; out.textContent = (r.log || []).join('\n');
+    toast(`Preuve ${r.id} créée · ${r.timestamps.length} horodatage(s) tiers`);
+    await refresh();
+  }, 'Horodatage…')}, 'Horodater');
+  const list = el('ul', {class: 'list'});
+  for (const p of st.proof_list || []) {
+    const v = el('button', {class: 'small', onclick: () => run(v, async () => {
+      const r = await api('/api/proof/verify', {root: current, id: p.id});
+      const okStamps = r.timestamps.filter(t => t.digest_match).length;
+      const changed = r.modified.length + r.missing.length + r.added.length;
+      out.hidden = false;
+      out.textContent = [`Preuve ${r.id}`, r.manifest_intact ? '✔ Manifeste intact' : '✖ Manifeste modifié !',
+        ...r.timestamps.map(t => t.note ? `· ${t.file} : ${t.note}` : `${t.digest_match ? '✔' : '✖'} ${t.file} : ${t.time || t.error}${t.openssl ? ' (OpenSSL : ' + t.openssl + ')' : ''}`),
+        r.archive ? (r.archive.ok ? '✔ sources.zip conforme' : '✖ sources.zip non conforme') : '· pas de copie des sources',
+        changed ? `· Projet modifié depuis : ${r.modified.length} modifié(s), ${r.missing.length} supprimé(s), ${r.added.length} ajouté(s)` : '✔ Fichiers actuels identiques'].join('\n');
+      toast(`${okStamps} horodatage(s) valide(s)`);
+    }, '…')}, 'Vérifier');
+    const stamps = p.timestamps.map(t => t.authority || 'OpenTimestamps').join(', ') || 'hors-ligne';
+    list.append(el('li', {class: 'small'}, el('div', {class: 'row', style: 'margin:0;justify-content:space-between'},
+      el('strong', {}, p.id.replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, '$3/$2/$1 $4:$5')), v),
+      el('div', {class: 'muted'}, `${p.files} fichiers · ${stamps}${p.archive ? ' · sources archivées' : ''}`),
+      p.note ? el('div', {}, '« ' + p.note + ' »') : null,
+      el('div', {class: 'mono muted'}, p.sha256)));
+  }
+  return el('section', {class: 'card'},
+    el('h2', {}, 'Preuves d\'antériorité'),
+    el('p', {class: 'sub'}, 'Empreinte SHA-256 de chaque fichier, horodatée par des autorités RFC 3161 et ancrée dans Bitcoin (OpenTimestamps).'),
+    el('div', {class: 'metric'}, st.proofs.count, el('small', {}, ' preuve(s)')),
+    el('div', {class: 'row'}, note), el('div', {class: 'row'}, btn,
+      el('label', {for: 'archive', style: 'margin:0;display:flex;gap:6px;align-items:center'}, archive, 'archiver une copie des sources')),
+    out, (st.proof_list || []).length ? list : null);
+}
+
+function protectCard(st) {
+  const out = el('div');
+  const check = (ok, label) => [el('span', {}, label), el('span', {class: ok ? 'ok' : 'warn'}, ok ? '✔' : '✖')];
+  const fp = el('button', {onclick: () => run(fp, async () => {
+    const r = await api('/api/fingerprint', {root: current});
+    toast(`${r.files} fichiers de code empreintés (${r.fingerprints} empreintes). Pensez à horodater.`);
+    await refresh();
+  })}, 'Enregistrer les empreintes');
+  const lic = el('button', {onclick: () => run(lic, async () => {
+    const r = await api('/api/license', {root: current, type: 'proprietary'});
+    toast('Licence propriétaire écrite : ' + r.path); await refresh();
+  })}, 'Créer LICENSE propriétaire');
+  const audit = el('button', {onclick: () => run(audit, async () => {
+    const r = await api('/api/audit', {root: current});
+    out.replaceChildren(el('h3', {class: 'small'}, 'Audit d\'exposition'),
+      r.findings.length ? el('ul', {class: 'list'}, r.findings.map(findingItem)) : el('p', {class: 'small ok'}, '✔ Rien d\'alarmant dans les fichiers publiés.'),
+      el('details', {}, el('summary', {}, 'Recommandations'), el('ul', {class: 'small'}, r.recommendations.map(x => el('li', {}, x)))));
+  })}, 'Auditer l\'exposition');
+  const suspect = el('input', {placeholder: 'Dossier ou fichier suspect (chemin local)', style: 'flex:1'});
+  const cmp = el('button', {onclick: () => run(cmp, async () => {
+    const r = await api('/api/compare', {root: current, suspect: suspect.value});
+    const s = r.suspect_similarity, c = r.reference_coverage;
+    const top = Math.max(s.strict, s.fuzzy * 0.8);
+    const verdict = top >= .5 ? 'Copie très probable' : top >= .2 ? 'Reprise partielle probable' : 'Pas de similarité significative';
+    out.replaceChildren(el('h3', {class: 'small'}, 'Comparaison : ' + verdict),
+      el('p', {class: 'small'}, `Code suspect issu de votre projet : ${pct(s.strict)} (strict) · ${pct(s.fuzzy)} (flou)`, el('br'),
+        `Votre projet retrouvé chez le suspect : ${pct(c.strict)} · ${pct(c.fuzzy)}`, el('br'),
+        el('span', {class: 'muted'}, 'Référence : ' + r.reference)),
+      el('ul', {class: 'list'}, r.matches.slice(0, 15).map(m => el('li', {class: 'small'},
+        el('strong', {}, pct(Math.max(m.strict, m.fuzzy))), ' ', el('span', {class: 'mono'}, m.file),
+        m.sources ? el('div', {class: 'muted mono'}, '← ' + m.sources.join(', ')) : null))));
+  })}, 'Comparer');
+  return el('section', {class: 'card'},
+    el('h2', {}, 'Protection contre la copie'),
+    el('p', {class: 'sub'}, 'Rien n\'est inviolable côté client : gardez la logique sensible sur le serveur, affirmez vos droits et gardez de quoi prouver une copie.'),
+    el('div', {class: 'checks'}, ...check(st.license, 'Fichier LICENSE'), ...check(st.fingerprints, 'Empreintes anti-copie enregistrées'),
+      ...check(st.hook, 'Hook git anti-secrets'), ...check(st.proofs.count > 0, 'Au moins une preuve horodatée')),
+    el('div', {class: 'row'}, st.license ? null : lic, fp, audit),
+    el('div', {class: 'row'}, suspect, cmp),
+    out);
+}
+
+function settingsCard(st) {
+  const c = st.config;
+  const author = el('input', {value: c.author || '', placeholder: 'Nom ou société', style: 'width:100%'});
+  const dests = el('textarea', {placeholder: 'E:\\Sauvegardes\n\\\\NAS\\backup\nC:\\Users\\moi\\OneDrive\\Sauvegardes\nrclone:b2:mon-bucket'});
+  dests.value = (c.destinations || []).join('\n');
+  const hook = el('input', {value: c.webhook_url || '', placeholder: 'https://discord.com/api/webhooks/… ou https://ntfy.sh/mon-sujet', style: 'width:100%'});
+  const stale = el('input', {type: 'number', min: 1, value: c.stale_after_hours, style: 'width:90px'});
+  const save = el('button', {class: 'primary', onclick: () => run(save, async () => {
+    await api('/api/settings', {root: current, author: author.value, destinations: dests.value.split('\n'),
+      webhook_url: hook.value, stale_after_hours: Number(stale.value) || 48});
+    toast('Réglages enregistrés'); await refresh();
+  })}, 'Enregistrer');
+  return el('section', {class: 'card'},
+    el('h2', {}, 'Réglages'),
+    el('p', {class: 'sub mono'}, st.root),
+    el('label', {}, 'Auteur (preuves, licence)'), author,
+    el('label', {}, 'Destinations de sauvegarde (une par ligne)'), dests,
+    el('label', {}, 'Webhook d\'alerte (Discord, Slack, Teams, ntfy)'), hook,
+    el('label', {}, 'Alerte si aucune sauvegarde depuis (heures)'), stale,
+    el('div', {class: 'row'}, save),
+    el('p', {class: 'small muted'}, 'Sauvegarde automatique : ', el('span', {class: 'mono'}, 'velora schedule --apply')));
+}
+
+async function uploadProject(blob, offline) {
+  const res = await fetch('/api/upload' + (offline ? '?offline=1' : ''), {method: 'POST',
+    headers: {'X-Velora-Token': TOKEN, 'Content-Type': 'application/zip'}, body: blob});
+  const data = await res.json().catch(() => ({error: 'Réponse invalide'}));
+  if (!res.ok) throw new Error(data.error || ('Erreur ' + res.status));
+  return data;
+}
+
+mountQuick(document.getElementById('quick'), {
+  intro: 'Le code est analysé puis effacé immédiatement : rien n\'est conservé. Le test en ligne ne fait que des lectures '
+    + '(aucune attaque) : HTTPS, en-têtes, cookies, fichiers exposés, secrets dans les scripts publiés.',
+  analyseProject: (blob, {offline}) => uploadProject(blob, offline),
+  analyseSite: url => api('/api/live', {url}),
+});
+document.getElementById('projectSelect').addEventListener('change', e => {
+  current = e.target.value;
+  try { localStorage.setItem('velora.project', current); } catch {}
+  refresh().catch(err => toast('⚠ ' + err.message));
+});
+document.getElementById('addProjectBtn').addEventListener('click', async () => {
+  const path = prompt('Chemin du dossier du projet à protéger :');
+  if (!path) return;
+  try {
+    const p = await api('/api/projects/add', {path});
+    try { localStorage.setItem('velora.project', p.root); } catch {}
+    await loadProjects(p.root);
+    toast('Projet ajouté : ' + p.name);
+  } catch (e) { toast('⚠ ' + e.message); }
+});
+loadProjects().catch(e => toast('⚠ ' + e.message));
+</script>
+</body>
+</html>

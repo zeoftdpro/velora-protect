@@ -1,0 +1,13 @@
+# Seul le nécessaire part chez Vercel : pas de tests, pas d'état local, pas de pyproject
+# (sans lui, les fonctions Python n'ont aucune dépendance à installer).
+tests/
+.velora/
+velora/.velora/
+*.egg-info/
+**/__pycache__/
+pyproject.toml
+public/
+
+# Variables locales (jeton OIDC Vercel…) : jamais envoyées
+.env*
+.vercel/

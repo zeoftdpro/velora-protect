@@ -1,0 +1,9 @@
+.hero { max-width: 760px; margin: 18px auto 22px; text-align: center; }
+.hero h1 { font-size: clamp(24px, 4vw, 34px); line-height: 1.2; margin: 0 0 10px; }
+.hero p { color: var(--muted); font-size: 15.5px; margin: 0; }
+.features { margin-top: 16px; }
+.verify { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; background: var(--bg); }
+.verify code { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px; }
+.disclaimer { text-align: center; margin-top: 24px; }
+.promises { list-style: none; padding: 0; margin: 16px auto 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.promises li { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; font-size: 13px; }

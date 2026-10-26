@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "velora-protect"
+version = "0.1.0"
+description = "Sécurité, sauvegarde, preuve d'antériorité et protection du code source."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+dependencies = []
+
+[project.scripts]
+velora = "velora.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["velora*"]
+
+[tool.setuptools.package-data]
+"velora.ui" = ["index.html", "style.css", "shared.js", "favicon.svg"]
